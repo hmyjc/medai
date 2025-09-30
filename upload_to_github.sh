@@ -9,7 +9,7 @@ set -eu
 ################################
 GITHUB_DOMAIN="github.com"
 DEFAULT_USERNAME="jchmy"  # 请修改为您的GitHub用户名
-DEFAULT_REPO_NAME="Medical_AI_Agent"
+DEFAULT_REPO_NAME="medai"
 
 # Medical AI Agent 项目特定的忽略规则
 MEDICAL_AI_IGNORE_RULES=(
