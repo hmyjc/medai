@@ -389,10 +389,11 @@ export default {
 
 <style lang="scss" scoped>
 .chat-container {
-  min-height: 100vh;
+  height: 100vh;
   background: #f8f9fa;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* 页面标题 */
@@ -421,10 +422,12 @@ export default {
 .chat-messages {
   flex: 1;
   padding: 20rpx;
+  overflow: hidden;
 }
 
 .message-scroll {
   height: 100%;
+  overflow-y: auto;
 }
 
 .message-item {
@@ -556,6 +559,7 @@ export default {
 .welcome-section {
   flex: 1;
   padding: 40rpx 20rpx;
+  overflow-y: auto;
 }
 
 .welcome-card {
@@ -736,8 +740,9 @@ export default {
 /* 功能菜单 */
 .function-menu {
   position: fixed;
-  bottom: 120rpx;
-  right: 30rpx;
+  top: 50%;
+  right: 150rpx;
+  transform: translateY(-50%);
   background: #fff;
   border-radius: 15rpx;
   box-shadow: 0 8rpx 30rpx rgba(0, 0, 0, 0.15);
@@ -773,8 +778,9 @@ export default {
 
 .function-btn {
   position: fixed;
-  bottom: 30rpx;
+  top: 50%;
   right: 30rpx;
+  transform: translateY(-50%);
   width: 100rpx;
   height: 100rpx;
   background: #1658FF;

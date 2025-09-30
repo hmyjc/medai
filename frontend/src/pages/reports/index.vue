@@ -176,7 +176,58 @@ export default {
       input.click()
       // #endif
       
-      // #ifndef H5
+      // 微信小程序环境
+      // #ifdef MP-WEIXIN
+      wx.chooseMessageFile({
+        count: 1,
+        type: 'file',
+        extension: ['pdf', 'doc', 'docx', 'txt'],
+        success: (res) => {
+          const file = res.tempFiles[0]
+          
+          // 检查文件大小（10MB）
+          if (file.size > 10 * 1024 * 1024) {
+            uni.showToast({
+              title: '文件大小不能超过10MB',
+              icon: 'error'
+            })
+            return
+          }
+
+          // 检查文件类型
+          const allowedTypes = ['pdf', 'doc', 'docx', 'txt']
+          const fileExt = file.name.split('.').pop().toLowerCase()
+          if (!allowedTypes.includes(fileExt)) {
+            uni.showToast({
+              title: '仅支持PDF、Word、TXT格式',
+              icon: 'error'
+            })
+            return
+          }
+
+          uploadedFile.value = {
+            name: file.name,
+            path: file.path,
+            size: file.size
+          }
+
+          uni.showToast({
+            title: '文件选择成功',
+            icon: 'success'
+          })
+        },
+        fail: (error) => {
+          console.error('选择文件失败:', error)
+          uni.showToast({
+            title: '选择文件失败',
+            icon: 'error'
+          })
+        }
+      })
+      // #endif
+      
+      // 其他小程序环境（支付宝、百度等）
+      // #ifndef H5 || MP-WEIXIN
       uni.chooseFile({
         count: 1,
         extension: ['.pdf', '.doc', '.docx', '.txt'],

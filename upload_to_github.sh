@@ -8,8 +8,8 @@ set -eu
 # 配置区域
 ################################
 GITHUB_DOMAIN="github.com"
-DEFAULT_USERNAME="hmyjc"  # 请修改为您的GitHub用户名
-DEFAULT_REPO_NAME="medai"
+DEFAULT_USERNAME="jchmy"  # 请修改为您的GitHub用户名
+DEFAULT_REPO_NAME=""
 
 # Medical AI Agent 项目特定的忽略规则
 MEDICAL_AI_IGNORE_RULES=(

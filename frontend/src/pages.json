@@ -66,27 +66,19 @@
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页",
-        "iconPath": "static/images/home.png",
-        "selectedIconPath": "static/images/home-active.png"
+        "text": "🏠 首页"
       },
       {
         "pagePath": "pages/chat/index",
-        "text": "问诊",
-        "iconPath": "static/images/chat.png",
-        "selectedIconPath": "static/images/chat-active.png"
+        "text": "🤖 问诊"
       },
       {
         "pagePath": "pages/history/index",
-        "text": "历史",
-        "iconPath": "static/images/history.png",
-        "selectedIconPath": "static/images/history-active.png"
+        "text": "📋 历史"
       },
       {
         "pagePath": "pages/profile/index",
-        "text": "我的",
-        "iconPath": "static/images/profile.png",
-        "selectedIconPath": "static/images/profile-active.png"
+        "text": "👤 我的"
       }
     ]
   },
