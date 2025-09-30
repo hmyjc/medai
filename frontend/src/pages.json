@@ -1,0 +1,100 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "医疗智能体"
+      }
+    },
+    {
+      "path": "pages/chat/index",
+      "style": {
+        "navigationBarTitleText": "智能问诊",
+        "enablePullDownRefresh": false,
+        "disableScroll": true,
+        "backgroundColor": "#f8f9fa"
+      }
+    },
+    {
+      "path": "pages/reports/index",
+      "style": {
+        "navigationBarTitleText": "报告解读"
+      }
+    },
+    {
+      "path": "pages/health/index",
+      "style": {
+        "navigationBarTitleText": "健康科普"
+      }
+    },
+    {
+      "path": "pages/dermatology/index",
+      "style": {
+        "navigationBarTitleText": "皮肤病咨询"
+      }
+    },
+    {
+      "path": "pages/medication/index",
+      "style": {
+        "navigationBarTitleText": "药物咨询"
+      }
+    },
+    {
+      "path": "pages/history/index",
+      "style": {
+        "navigationBarTitleText": "历史记录"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "医疗智能体",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f8f9fa"
+  },
+  "tabBar": {
+    "color": "#7A7E83",
+    "selectedColor": "#1658FF",
+    "borderStyle": "black",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "static/images/home.png",
+        "selectedIconPath": "static/images/home-active.png"
+      },
+      {
+        "pagePath": "pages/chat/index",
+        "text": "问诊",
+        "iconPath": "static/images/chat.png",
+        "selectedIconPath": "static/images/chat-active.png"
+      },
+      {
+        "pagePath": "pages/history/index",
+        "text": "历史",
+        "iconPath": "static/images/history.png",
+        "selectedIconPath": "static/images/history-active.png"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的",
+        "iconPath": "static/images/profile.png",
+        "selectedIconPath": "static/images/profile-active.png"
+      }
+    ]
+  },
+  "uniIdRouter": {},
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^u-(.*)": "uview-plus/components/u-$1/u-$1.vue"
+    }
+  }
+}
