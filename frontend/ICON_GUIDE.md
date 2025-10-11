@@ -111,3 +111,11 @@ npm run build:mp-weixin
 
 然后在微信开发者工具中重新打开 `dist/build/mp-weixin` 目录。
 
+
+
+
+
+
+
+
+

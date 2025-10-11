@@ -18,11 +18,13 @@
         />
         <button 
           class="search-btn" 
-          :disabled="!canSearch"
-          :class="{ active: canSearch }"
+          :disabled="!canSearch || isPaying"
+          :class="{ active: canSearch && !isPaying, paid: paymentVerified }"
           @click="searchHealth"
         >
-          🔍
+          <text v-if="isPaying">支付中...</text>
+          <text v-else-if="paymentVerified">🔍</text>
+          <text v-else>💰</text>
         </button>
       </view>
     </view>
@@ -113,7 +115,7 @@
 <script>
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useHistoryStore, useUserStore } from '@/store'
-import { healthEducationApi, handleApiError } from '@/api'
+import { healthEducationApi, paymentApi, handleApiError } from '@/api'
 
 export default {
   name: 'HealthPage',
@@ -127,6 +129,9 @@ export default {
     const lastQuery = ref('')
     const isSearching = ref(false)
     const searchHistory = ref([])
+    const isPaying = ref(false)
+    const paymentVerified = ref(false)
+    const userOpenid = ref('') // 用户openid，实际项目中从用户信息获取
 
     // 热门话题
     const hotTopics = ref([
@@ -171,6 +176,67 @@ export default {
       searchQuery.value = e.detail.value
     }
 
+    // 支付相关方法
+    const handlePayment = async () => {
+      if (!userOpenid.value) {
+        uni.showToast({
+          title: '请先获取用户信息',
+          icon: 'error'
+        })
+        return
+      }
+
+      try {
+        isPaying.value = true
+        
+        // 创建支付订单
+        const paymentResponse = await paymentApi.createPayment('education', userOpenid.value)
+        
+        if (paymentResponse.success) {
+          // 发起微信支付
+          const payResult = await paymentApi.requestPayment(paymentResponse.data.pay_params)
+          
+          if (payResult.errMsg === 'requestPayment:ok') {
+            // 支付成功，验证支付状态
+            const queryResult = await paymentApi.queryPayment(paymentResponse.data.out_trade_no)
+            
+            if (queryResult.success && queryResult.data.trade_state === 'SUCCESS') {
+              paymentVerified.value = true
+              uni.showToast({
+                title: '支付成功',
+                icon: 'success'
+              })
+              // 支付成功后自动开始搜索
+              searchHealth()
+            } else {
+              uni.showToast({
+                title: '支付验证失败',
+                icon: 'error'
+              })
+            }
+          } else {
+            uni.showToast({
+              title: '支付取消',
+              icon: 'none'
+            })
+          }
+        } else {
+          uni.showToast({
+            title: paymentResponse.message || '创建支付订单失败',
+            icon: 'error'
+          })
+        }
+      } catch (error) {
+        console.error('支付失败:', error)
+        uni.showToast({
+          title: '支付失败',
+          icon: 'error'
+        })
+      } finally {
+        isPaying.value = false
+      }
+    }
+
     const searchHealth = async () => {
       const query = searchQuery.value.trim()
       if (!query || isSearching.value) {
@@ -181,9 +247,10 @@ export default {
         isSearching.value = true
         lastQuery.value = query
 
-        // 调用健康科普API
+        // 调用健康科普API，传递支付验证状态
         const response = await healthEducationApi.query({
-          question: query
+          question: query,
+          payment_verified: paymentVerified.value
         })
 
         if (response.success) {
@@ -206,7 +273,20 @@ export default {
             icon: 'success'
           })
         } else {
-          throw new Error(response.message || '搜索失败')
+          // 检查是否需要支付
+          if (response.code === 'PAYMENT_REQUIRED') {
+            uni.showModal({
+              title: '付费服务',
+              content: '健康科普服务需要支付9.9元，是否立即支付？',
+              success: (res) => {
+                if (res.confirm) {
+                  handlePayment()
+                }
+              }
+            })
+          } else {
+            throw new Error(response.message || '搜索失败')
+          }
         }
 
       } catch (error) {
@@ -365,11 +445,15 @@ export default {
       lastQuery,
       isSearching,
       searchHistory,
+      isPaying,
+      paymentVerified,
+      userOpenid,
       hotTopics,
       healthSuggestions,
       canSearch,
       onSearchInput,
       searchHealth,
+      handlePayment,
       selectTopic,
       searchFromHistory,
       clearHistory,
@@ -445,6 +529,11 @@ export default {
 
   &.active {
     background: #1658FF;
+    color: #fff;
+  }
+  
+  &.paid {
+    background: #28a745;
     color: #fff;
   }
 

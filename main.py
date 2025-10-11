@@ -10,6 +10,7 @@ import uvicorn
 from agents import AgentFactory
 from utils import FileProcessor, ResponseFormatter, validate_file_type, validate_file_size
 from config import Config
+from payment import WeChatPay, PAYMENT_SERVICES
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -43,6 +44,15 @@ class HealthEducationRequest(BaseModel):
 class MedicationRequest(BaseModel):
     """药物咨询请求模型"""
     question: str
+
+class PaymentRequest(BaseModel):
+    """支付请求模型"""
+    service_type: str  # report, medication, education, dermatology
+    openid: str
+
+class PaymentNotifyRequest(BaseModel):
+    """支付回调请求模型"""
+    xml_data: str
 
 
 @app.get("/")
@@ -116,12 +126,17 @@ async def medical_chat(request: ChatRequest):
 
 
 @app.post("/api/report-interpretation")
-async def report_interpretation(file: UploadFile = File(...)):
+async def report_interpretation(file: UploadFile = File(...), payment_verified: bool = False):
     """
     独立接口：报告解读智能体
     上传office文件并解读医学报告
     """
     try:
+        # 检查是否需要支付验证
+        agent_config = Config.AGENTS_CONFIG.get("report_interpretation")
+        if agent_config and agent_config.get('requires_payment', False) and not payment_verified:
+            return ResponseFormatter.error_response("该服务需要支付，请先完成支付", code="PAYMENT_REQUIRED")
+        
         # 验证文件类型
         if not validate_file_type(file.filename, "document"):
             return ResponseFormatter.error_response("不支持的文件类型，请上传Word或PDF文件")
@@ -159,12 +174,17 @@ async def report_interpretation(file: UploadFile = File(...)):
 
 
 @app.post("/api/health-education")
-async def health_education(request: HealthEducationRequest):
+async def health_education(request: HealthEducationRequest, payment_verified: bool = False):
     """
     独立接口：健康科普智能体
     提供权威医学知识科普
     """
     try:
+        # 检查是否需要支付验证
+        agent_config = Config.AGENTS_CONFIG.get("health_education")
+        if agent_config and agent_config.get('requires_payment', False) and not payment_verified:
+            return ResponseFormatter.error_response("该服务需要支付，请先完成支付", code="PAYMENT_REQUIRED")
+        
         question = request.question.strip()
         if not question:
             return ResponseFormatter.error_response("请输入有效的问题")
@@ -182,13 +202,19 @@ async def health_education(request: HealthEducationRequest):
 @app.post("/api/dermatology-consultation")
 async def dermatology_consultation(
     file: UploadFile = File(...),
-    symptoms: str = Form("")
+    symptoms: str = Form(""),
+    payment_verified: bool = False
 ):
     """
     独立接口：皮肤病咨询智能体
     上传皮肤图片并提供诊断建议
     """
     try:
+        # 检查是否需要支付验证
+        agent_config = Config.AGENTS_CONFIG.get("dermatology")
+        if agent_config and agent_config.get('requires_payment', False) and not payment_verified:
+            return ResponseFormatter.error_response("该服务需要支付，请先完成支付", code="PAYMENT_REQUIRED")
+        
         # 验证文件类型
         if not validate_file_type(file.filename, "image"):
             return ResponseFormatter.error_response("不支持的图片格式，请上传JPG、PNG等图片文件")
@@ -214,12 +240,17 @@ async def dermatology_consultation(
 
 
 @app.post("/api/medication-consultation")
-async def medication_consultation(request: MedicationRequest):
+async def medication_consultation(request: MedicationRequest, payment_verified: bool = False):
     """
     独立接口：药物咨询智能体
     基于药品说明书提供用药指导
     """
     try:
+        # 检查是否需要支付验证
+        agent_config = Config.AGENTS_CONFIG.get("medication")
+        if agent_config and agent_config.get('requires_payment', False) and not payment_verified:
+            return ResponseFormatter.error_response("该服务需要支付，请先完成支付", code="PAYMENT_REQUIRED")
+        
         question = request.question.strip()
         if not question:
             return ResponseFormatter.error_response("请输入有效的药物咨询问题")
@@ -250,6 +281,103 @@ async def get_config():
             "vision_model": Config.VISION_MODEL
         }
     })
+
+
+# 支付相关接口
+@app.post("/api/payment/create")
+async def create_payment(request: PaymentRequest):
+    """
+    创建支付订单
+    """
+    try:
+        service_type = request.service_type
+        openid = request.openid
+        
+        # 验证服务类型
+        if service_type not in PAYMENT_SERVICES:
+            return ResponseFormatter.error_response("不支持的服务类型")
+        
+        # 检查服务是否需要支付
+        agent_config = Config.AGENTS_CONFIG.get(service_type)
+        if not agent_config or not agent_config.get('requires_payment', False):
+            return ResponseFormatter.error_response("该服务不需要支付")
+        
+        # 创建支付订单
+        wechat_pay = WeChatPay()
+        service_info = PAYMENT_SERVICES[service_type]
+        
+        result = wechat_pay.create_order(
+            openid=openid,
+            service_type=service_type,
+            description=service_info['description']
+        )
+        
+        if result['success']:
+            return ResponseFormatter.success_response(result['data'], "支付订单创建成功")
+        else:
+            return ResponseFormatter.error_response(result['message'])
+            
+    except Exception as e:
+        return ResponseFormatter.error_response(f"创建支付订单失败: {str(e)}")
+
+
+@app.post("/api/payment/query")
+async def query_payment(out_trade_no: str):
+    """
+    查询支付状态
+    """
+    try:
+        wechat_pay = WeChatPay()
+        result = wechat_pay.query_order(out_trade_no)
+        
+        if result['success']:
+            return ResponseFormatter.success_response(result['data'], "查询成功")
+        else:
+            return ResponseFormatter.error_response(result['message'])
+            
+    except Exception as e:
+        return ResponseFormatter.error_response(f"查询支付状态失败: {str(e)}")
+
+
+@app.post("/api/payment/notify")
+async def payment_notify(request: PaymentNotifyRequest):
+    """
+    支付回调接口
+    """
+    try:
+        wechat_pay = WeChatPay()
+        result = wechat_pay.verify_notify(request.xml_data)
+        
+        if result['success']:
+            # 这里可以添加支付成功后的业务逻辑
+            # 比如更新用户权限、记录支付记录等
+            return ResponseFormatter.success_response(None, "支付回调处理成功")
+        else:
+            return ResponseFormatter.error_response(result['message'])
+            
+    except Exception as e:
+        return ResponseFormatter.error_response(f"支付回调处理失败: {str(e)}")
+
+
+@app.get("/api/payment/services")
+async def get_payment_services():
+    """
+    获取付费服务列表
+    """
+    try:
+        paid_services = {}
+        for service_type, config in Config.AGENTS_CONFIG.items():
+            if config.get('requires_payment', False):
+                paid_services[service_type] = {
+                    'name': config['name'],
+                    'description': config['description'],
+                    'price': config['price']
+                }
+        
+        return ResponseFormatter.success_response(paid_services, "获取付费服务列表成功")
+        
+    except Exception as e:
+        return ResponseFormatter.error_response(f"获取付费服务列表失败: {str(e)}")
 
 
 if __name__ == "__main__":

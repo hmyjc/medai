@@ -67,12 +67,14 @@
     <view class="analyze-section" v-if="selectedImage">
       <button 
         class="analyze-btn" 
-        :disabled="isAnalyzing"
-        :class="{ analyzing: isAnalyzing }"
+        :disabled="isAnalyzing || isPaying"
+        :class="{ analyzing: isAnalyzing, paid: paymentVerified }"
         @click="analyzeImage"
       >
         <text v-if="isAnalyzing">分析中...</text>
-        <text v-else>开始分析</text>
+        <text v-else-if="isPaying">支付中...</text>
+        <text v-else-if="paymentVerified">开始分析</text>
+        <text v-else>支付分析 (¥9.9)</text>
       </button>
     </view>
 
@@ -147,7 +149,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { useHistoryStore, useUserStore } from '@/store'
-import { dermatologyApi, handleApiError } from '@/api'
+import { dermatologyApi, paymentApi, handleApiError } from '@/api'
 
 export default {
   name: 'DermatologyPage',
@@ -160,6 +162,9 @@ export default {
     const symptomsText = ref('')
     const isAnalyzing = ref(false)
     const analysisResult = ref('')
+    const isPaying = ref(false)
+    const paymentVerified = ref(false)
+    const userOpenid = ref('') // 用户openid，实际项目中从用户信息获取
 
     // 常见症状
     const commonSymptoms = ref([
@@ -300,6 +305,67 @@ export default {
       }
     }
 
+    // 支付相关方法
+    const handlePayment = async () => {
+      if (!userOpenid.value) {
+        uni.showToast({
+          title: '请先获取用户信息',
+          icon: 'error'
+        })
+        return
+      }
+
+      try {
+        isPaying.value = true
+        
+        // 创建支付订单
+        const paymentResponse = await paymentApi.createPayment('dermatology', userOpenid.value)
+        
+        if (paymentResponse.success) {
+          // 发起微信支付
+          const payResult = await paymentApi.requestPayment(paymentResponse.data.pay_params)
+          
+          if (payResult.errMsg === 'requestPayment:ok') {
+            // 支付成功，验证支付状态
+            const queryResult = await paymentApi.queryPayment(paymentResponse.data.out_trade_no)
+            
+            if (queryResult.success && queryResult.data.trade_state === 'SUCCESS') {
+              paymentVerified.value = true
+              uni.showToast({
+                title: '支付成功',
+                icon: 'success'
+              })
+              // 支付成功后自动开始分析
+              analyzeImage()
+            } else {
+              uni.showToast({
+                title: '支付验证失败',
+                icon: 'error'
+              })
+            }
+          } else {
+            uni.showToast({
+              title: '支付取消',
+              icon: 'none'
+            })
+          }
+        } else {
+          uni.showToast({
+            title: paymentResponse.message || '创建支付订单失败',
+            icon: 'error'
+          })
+        }
+      } catch (error) {
+        console.error('支付失败:', error)
+        uni.showToast({
+          title: '支付失败',
+          icon: 'error'
+        })
+      } finally {
+        isPaying.value = false
+      }
+    }
+
     const analyzeImage = async () => {
       if (!selectedImage.value || isAnalyzing.value) {
         return
@@ -308,10 +374,11 @@ export default {
       try {
         isAnalyzing.value = true
 
-        // 调用皮肤病咨询API
+        // 调用皮肤病咨询API，传递支付验证状态
         const response = await dermatologyApi.uploadAndConsult(
           selectedImage.value.path,
-          symptomsText.value
+          symptomsText.value,
+          paymentVerified.value
         )
 
         if (response.success) {
@@ -332,7 +399,20 @@ export default {
             icon: 'success'
           })
         } else {
-          throw new Error(response.message || '分析失败')
+          // 检查是否需要支付
+          if (response.code === 'PAYMENT_REQUIRED') {
+            uni.showModal({
+              title: '付费服务',
+              content: '皮肤病诊断服务需要支付9.9元，是否立即支付？',
+              success: (res) => {
+                if (res.confirm) {
+                  handlePayment()
+                }
+              }
+            })
+          } else {
+            throw new Error(response.message || '分析失败')
+          }
         }
 
       } catch (error) {
@@ -448,12 +528,16 @@ export default {
       symptomsText,
       isAnalyzing,
       analysisResult,
+      isPaying,
+      paymentVerified,
+      userOpenid,
       commonSymptoms,
       consultationHistory,
       chooseImage,
       onSymptomsInput,
       addSymptom,
       analyzeImage,
+      handlePayment,
       saveResult,
       shareResult,
       viewAllHistory,
@@ -673,10 +757,15 @@ export default {
   font-size: 36rpx;
   font-weight: bold;
   box-shadow: 0 4rpx 12rpx rgba(102, 126, 234, 0.3);
+  transition: all 0.2s ease;
 
   &.analyzing {
     background: #ccc;
     box-shadow: none;
+  }
+  
+  &.paid {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
   }
 
   &:disabled {

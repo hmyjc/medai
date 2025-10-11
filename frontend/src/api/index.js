@@ -128,6 +128,121 @@ export const medicalChatApi = {
   }
 }
 
+// 支付API
+export const paymentApi = {
+  // 创建支付订单
+  createPayment: (serviceType, openid) => {
+    debugLog('创建支付订单:', { serviceType, openid })
+    
+    return new Promise((resolve, reject) => {
+      uni.request({
+        url: `${API_BASE_URL}/api/payment/create`,
+        method: 'POST',
+        data: {
+          service_type: serviceType,
+          openid: openid
+        },
+        header: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': Date.now() + Math.random().toString(36).substr(2, 9)
+        },
+        success: (res) => {
+          debugLog('支付订单创建成功:', res)
+          if (res.statusCode === 200 && res.data.success) {
+            resolve(res.data)
+          } else {
+            reject(new Error(res.data.message || '创建支付订单失败'))
+          }
+        },
+        fail: (error) => {
+          debugLog('支付订单创建失败:', error)
+          reject(new Error(error.errMsg || '网络请求失败'))
+        }
+      })
+    })
+  },
+
+  // 查询支付状态
+  queryPayment: (outTradeNo) => {
+    debugLog('查询支付状态:', { outTradeNo })
+    
+    return new Promise((resolve, reject) => {
+      uni.request({
+        url: `${API_BASE_URL}/api/payment/query`,
+        method: 'POST',
+        data: { out_trade_no: outTradeNo },
+        header: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': Date.now() + Math.random().toString(36).substr(2, 9)
+        },
+        success: (res) => {
+          debugLog('支付状态查询成功:', res)
+          if (res.statusCode === 200 && res.data.success) {
+            resolve(res.data)
+          } else {
+            reject(new Error(res.data.message || '查询支付状态失败'))
+          }
+        },
+        fail: (error) => {
+          debugLog('支付状态查询失败:', error)
+          reject(new Error(error.errMsg || '网络请求失败'))
+        }
+      })
+    })
+  },
+
+  // 获取付费服务列表
+  getPaymentServices: () => {
+    debugLog('获取付费服务列表')
+    
+    return new Promise((resolve, reject) => {
+      uni.request({
+        url: `${API_BASE_URL}/api/payment/services`,
+        method: 'GET',
+        header: {
+          'X-Request-ID': Date.now() + Math.random().toString(36).substr(2, 9)
+        },
+        success: (res) => {
+          debugLog('付费服务列表获取成功:', res)
+          if (res.statusCode === 200 && res.data.success) {
+            resolve(res.data)
+          } else {
+            reject(new Error(res.data.message || '获取付费服务列表失败'))
+          }
+        },
+        fail: (error) => {
+          debugLog('付费服务列表获取失败:', error)
+          reject(new Error(error.errMsg || '网络请求失败'))
+        }
+      })
+    })
+  },
+
+  // 微信小程序支付
+  requestPayment: (payParams) => {
+    debugLog('发起微信支付:', payParams)
+    
+    return new Promise((resolve, reject) => {
+      uni.requestPayment({
+        provider: 'wxpay',
+        timeStamp: payParams.timeStamp,
+        nonceStr: payParams.nonceStr,
+        package: payParams.package,
+        signType: payParams.signType,
+        paySign: payParams.paySign,
+        success: (res) => {
+          debugLog('微信支付成功:', res)
+          resolve(res)
+        },
+        fail: (error) => {
+          debugLog('微信支付失败:', error)
+          reject(error)
+        }
+      })
+    })
+  }
+}
+
 // 报告解读API
 export const reportApi = {
   // 上传并解读报告

@@ -22,8 +22,16 @@
         </button>
         <view class="upload-actions" v-else>
           <button class="change-btn" @click.stop="chooseFile">重新选择</button>
-          <button class="analyze-btn" @click.stop="analyzeReport" :disabled="isAnalyzing">
-            {{ isAnalyzing ? '分析中...' : '开始解读' }}
+          <button 
+            class="analyze-btn" 
+            @click.stop="analyzeReport" 
+            :disabled="isAnalyzing || isPaying"
+            :class="{ 'paid': paymentVerified }"
+          >
+            <text v-if="isAnalyzing">分析中...</text>
+            <text v-else-if="isPaying">支付中...</text>
+            <text v-else-if="paymentVerified">开始解读</text>
+            <text v-else>支付解读 (¥9.9)</text>
           </button>
         </view>
       </view>
@@ -108,7 +116,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { useHistoryStore, useUserStore } from '@/store'
-import { reportApi, handleApiError } from '@/api'
+import { reportApi, paymentApi, handleApiError } from '@/api'
 
 export default {
   name: 'ReportsPage',
@@ -120,6 +128,9 @@ export default {
     const uploadedFile = ref(null)
     const isAnalyzing = ref(false)
     const analysisResult = ref('')
+    const isPaying = ref(false)
+    const paymentVerified = ref(false)
+    const userOpenid = ref('') // 用户openid，实际项目中从用户信息获取
 
     // 计算属性
     const reportHistory = computed(() => 
@@ -276,6 +287,67 @@ export default {
       // #endif
     }
 
+    // 支付相关方法
+    const handlePayment = async () => {
+      if (!userOpenid.value) {
+        uni.showToast({
+          title: '请先获取用户信息',
+          icon: 'error'
+        })
+        return
+      }
+
+      try {
+        isPaying.value = true
+        
+        // 创建支付订单
+        const paymentResponse = await paymentApi.createPayment('report', userOpenid.value)
+        
+        if (paymentResponse.success) {
+          // 发起微信支付
+          const payResult = await paymentApi.requestPayment(paymentResponse.data.pay_params)
+          
+          if (payResult.errMsg === 'requestPayment:ok') {
+            // 支付成功，验证支付状态
+            const queryResult = await paymentApi.queryPayment(paymentResponse.data.out_trade_no)
+            
+            if (queryResult.success && queryResult.data.trade_state === 'SUCCESS') {
+              paymentVerified.value = true
+              uni.showToast({
+                title: '支付成功',
+                icon: 'success'
+              })
+              // 支付成功后自动开始分析
+              analyzeReport()
+            } else {
+              uni.showToast({
+                title: '支付验证失败',
+                icon: 'error'
+              })
+            }
+          } else {
+            uni.showToast({
+              title: '支付取消',
+              icon: 'none'
+            })
+          }
+        } else {
+          uni.showToast({
+            title: paymentResponse.message || '创建支付订单失败',
+            icon: 'error'
+          })
+        }
+      } catch (error) {
+        console.error('支付失败:', error)
+        uni.showToast({
+          title: '支付失败',
+          icon: 'error'
+        })
+      } finally {
+        isPaying.value = false
+      }
+    }
+
     const analyzeReport = async () => {
       if (!uploadedFile.value || isAnalyzing.value) {
         return
@@ -284,10 +356,11 @@ export default {
       try {
         isAnalyzing.value = true
         
-        // 调用报告解读API
+        // 调用报告解读API，传递支付验证状态
         const response = await reportApi.uploadAndInterpret(
           uploadedFile.value.path,
-          uploadedFile.value.name
+          uploadedFile.value.name,
+          paymentVerified.value
         )
 
         if (response.success) {
@@ -307,7 +380,20 @@ export default {
             icon: 'success'
           })
         } else {
-          throw new Error(response.message || '解读失败')
+          // 检查是否需要支付
+          if (response.code === 'PAYMENT_REQUIRED') {
+            uni.showModal({
+              title: '付费服务',
+              content: '报告解读服务需要支付9.9元，是否立即支付？',
+              success: (res) => {
+                if (res.confirm) {
+                  handlePayment()
+                }
+              }
+            })
+          } else {
+            throw new Error(response.message || '解读失败')
+          }
         }
 
       } catch (error) {
@@ -411,9 +497,13 @@ export default {
       uploadedFile,
       isAnalyzing,
       analysisResult,
+      isPaying,
+      paymentVerified,
+      userOpenid,
       reportHistory,
       chooseFile,
       analyzeReport,
+      handlePayment,
       saveResult,
       shareResult,
       viewAllHistory,
@@ -521,9 +611,18 @@ export default {
   border-radius: 50rpx;
   padding: 20rpx 40rpx;
   font-size: 28rpx;
+  transition: all 0.2s ease;
 
   &:disabled {
     opacity: 0.6;
+  }
+  
+  &.paid {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  }
+  
+  &:active:not(:disabled) {
+    transform: scale(0.98);
   }
 }
 
