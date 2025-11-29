@@ -207,8 +207,12 @@ export default {
           return
         }
 
+        // 创建预览URL
+        const previewUrl = URL.createObjectURL(file)
+
         selectedImage.value = {
-          path: file, // H5环境下直接传文件对象
+          file: file, // 保存原始文件对象用于上传
+          path: previewUrl, // 用于预览显示
           size: file.size
         }
 
@@ -309,8 +313,10 @@ export default {
         isAnalyzing.value = true
 
         // 调用皮肤病咨询API
+        // H5环境使用file对象，非H5使用path
+        const uploadData = selectedImage.value.file || selectedImage.value.path
         const response = await dermatologyApi.uploadAndConsult(
-          selectedImage.value.path,
+          uploadData,
           symptomsText.value
         )
 
